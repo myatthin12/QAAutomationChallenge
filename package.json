@@ -1,9 +1,18 @@
 {
   "name": "qaautomationchallenge",
   "version": "1.0.0",
-  "description": "",
+  "description": "Playwright + TypeScript UI automation suite for the DemoBlaze demo shop",
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "test": "playwright test",
+    "test:chromium": "playwright test --project=chromium",
+    "test:firefox": "playwright test --project=firefox",
+    "test:webkit": "playwright test --project=webkit",
+    "test:headed": "playwright test --project=chromium --headed",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "install:browsers": "playwright install --with-deps"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/myatthin12/QAAutomationChallenge.git"
@@ -19,5 +28,8 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.4"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.5"
   }
 }

@@ -1,31 +1,43 @@
 import { Page, Locator, expect } from '@playwright/test';
 
+/**
+ * The DemoBlaze product catalogue (home page) plus the navigation bar
+ * that is shared across the whole site.
+ */
 export class HomePage {
   readonly page: Page;
+  readonly cartNavButton: Locator;
   readonly loginNavButton: Locator;
-  readonly usernameInput: Locator;
-  readonly passwordInput: Locator;
-  readonly loginSubmitButton: Locator;
+  readonly logoutNavButton: Locator;
   readonly userGreeting: Locator;
+  readonly productCards: Locator;
 
   constructor(page: Page) {
     this.page = page;
+    this.cartNavButton = page.locator('#cartur');
     this.loginNavButton = page.locator('#login2');
-    this.usernameInput = page.locator('#loginusername');
-    this.passwordInput = page.locator('#loginpassword');
-    this.loginSubmitButton = page.locator('button[onclick="logIn()"]');
+    this.logoutNavButton = page.locator('#logout2');
     this.userGreeting = page.locator('#nameofuser');
+    this.productCards = page.locator('#tbodyid .card-title a');
   }
 
   async goto() {
-    await this.page.goto('https://www.demoblaze.com/');
+    await this.page.goto('/', { waitUntil: 'domcontentloaded' });
+    // The catalogue is rendered by JS after the initial HTML loads.
+    await expect(this.productCards.first()).toBeVisible();
   }
 
-  async login(username: string, pass: string) {
-    await this.loginNavButton.click();
-    await this.usernameInput.fill(username);
-    await this.passwordInput.fill(pass);
-    await this.loginSubmitButton.click();
+  productLink(productName: string): Locator {
+    return this.productCards.filter({ hasText: productName });
+  }
+
+  /** Opens a product detail page from the catalogue. */
+  async openProduct(productName: string) {
+    await this.productLink(productName).first().click();
+  }
+
+  async openCart() {
+    await this.cartNavButton.click();
   }
 
   async verifyLoggedIn(username: string) {

@@ -1,5 +1,6 @@
-import { test } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { LoginPage } from '../pages/LoginPage';
+import { CREDENTIALS, INVALID_PASSWORD } from '../config/env';
 
 test.describe('DemoBlaze Authentication Suite', () => {
   let loginPage: LoginPage;
@@ -11,13 +12,32 @@ test.describe('DemoBlaze Authentication Suite', () => {
 
   test('TC_LOG_001: Login with valid credentials', async () => {
     await loginPage.openLoginModal();
-    // Ensure this username/password exists in your DemoBlaze instance
-    await loginPage.fillCredentials('m1', 'test1234'); 
+    await loginPage.fillCredentials(CREDENTIALS.username, CREDENTIALS.password);
     await loginPage.submitLogin();
-    await loginPage.verifyLoggedIn();
+
+    await loginPage.verifyLoggedIn(CREDENTIALS.username);
   });
 
-  test('TC_LOG_002: Login with wrong password handles alert and closes modal', async () => {
-    await loginPage.loginWithInvalidCredentials('m1', 'wrongpass123');
+  test('TC_LOG_002: Login with wrong password shows an alert and keeps the user signed out', async () => {
+    const message = await loginPage.loginExpectingAlert(
+      CREDENTIALS.username,
+      INVALID_PASSWORD,
+    );
+
+    expect(message).toBe('Wrong password.');
+
+    await loginPage.closeLoginModal();
+    await loginPage.verifyLoggedOut();
+  });
+
+  test('TC_LOG_003: Login with an unknown user shows an alert', async () => {
+    const unknownUser = `no-such-user-${Date.now()}`;
+
+    const message = await loginPage.loginExpectingAlert(unknownUser, INVALID_PASSWORD);
+
+    expect(message).toBe('User does not exist.');
+
+    await loginPage.closeLoginModal();
+    await loginPage.verifyLoggedOut();
   });
 });
