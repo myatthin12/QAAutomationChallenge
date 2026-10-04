@@ -1,41 +1,42 @@
 import { Page, Locator, expect } from '@playwright/test';
+import { BasePage } from './BasePage';
 
-/**
- * The login modal that is opened from the DemoBlaze navigation bar.
- */
-export class LoginPage {
-  readonly page: Page;
-  readonly loginNavButton: Locator;
+/** The login modal opened from the DemoBlaze navigation bar. */
+export class LoginPage extends BasePage {
   readonly loginModal: Locator;
   readonly usernameInput: Locator;
   readonly passwordInput: Locator;
   readonly loginSubmitButton: Locator;
-  readonly loginModalCloseButton: Locator;
-  readonly userGreeting: Locator;
-  readonly logoutNavButton: Locator;
+  readonly closeButton: Locator;
+  readonly dismissButton: Locator;
 
   constructor(page: Page) {
-    this.page = page;
-    this.loginNavButton = page.locator('#login2');
+    super(page);
     this.loginModal = page.locator('#logInModal');
     this.usernameInput = page.locator('#loginusername');
     this.passwordInput = page.locator('#loginpassword');
     this.loginSubmitButton = page.locator('button[onclick="logIn()"]');
-    this.loginModalCloseButton = this.loginModal.locator('button.btn-secondary');
-    this.userGreeting = page.locator('#nameofuser');
-    this.logoutNavButton = page.locator('#logout2');
+    this.closeButton = this.loginModal.locator('button.btn-secondary');
+    this.dismissButton = this.loginModal.locator('button.close');
   }
 
+  /**
+   * Opens the home page, retrying the navigation if it stalls. The demo host
+   * intermittently times out a page load under traffic, which would otherwise
+   * fail the test on an infrastructure hiccup rather than a real defect.
+   */
   async goto() {
-    await this.page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(this.loginNavButton).toBeVisible();
+    await expect(async () => {
+      await this.page.goto('/', { waitUntil: 'domcontentloaded' });
+      await expect(this.loginNavButton).toBeVisible({ timeout: 10_000 });
+    }).toPass({ timeout: 60_000 });
   }
 
   async openLoginModal() {
     await this.loginNavButton.click();
     // Bootstrap fades the modal in; waiting for the input alone is not enough
     // because clicks land on the backdrop while the animation runs.
-    await expect(this.loginModal).toHaveClass(/show/);
+    await this.waitForModalOpen(this.loginModal);
     await expect(this.usernameInput).toBeVisible();
   }
 
@@ -66,42 +67,34 @@ export class LoginPage {
     const response = await responsePromise;
     expect(response.ok(), 'login request should succeed').toBeTruthy();
 
+    await expect(this.loginModal).not.toBeVisible();
     await this.verifyLoggedIn(username);
   }
 
-  async verifyLoggedIn(username: string) {
-    await expect(this.loginModal).not.toBeVisible();
-    await expect(this.userGreeting).toBeVisible();
-    await expect(this.userGreeting).toHaveText(`Welcome ${username}`);
-    await expect(this.logoutNavButton).toBeVisible();
-  }
-
-  /**
-   * Submits a bad password and returns the text of the alert DemoBlaze raises.
-   * The dialog handler is armed before the click so the alert cannot be missed.
-   */
+  /** Submits credentials expected to be rejected and returns the alert text. */
   async loginExpectingAlert(username: string, password: string): Promise<string> {
     await this.openLoginModal();
     await this.fillCredentials(username, password);
+    return this.captureAlert(() => this.submitLogin());
+  }
 
-    const dialogPromise = this.page.waitForEvent('dialog');
-    await this.submitLogin();
-
-    const dialog = await dialogPromise;
-    const message = dialog.message();
-    await dialog.dismiss();
-
-    return message;
+  /** Submits the form without opening the modal again (already open). */
+  async submitExpectingAlert(): Promise<string> {
+    return this.captureAlert(() => this.submitLogin());
   }
 
   async closeLoginModal() {
-    await this.loginModalCloseButton.click();
+    await this.closeButton.click();
     await expect(this.loginModal).not.toBeVisible();
     await expect(this.loginNavButton).toBeVisible();
   }
 
-  async verifyLoggedOut() {
-    await expect(this.loginNavButton).toBeVisible();
-    await expect(this.userGreeting).not.toBeVisible();
+  /** Submits the login form by pressing Enter in the password field. */
+  async submitWithEnterKey() {
+    await this.passwordInput.press('Enter');
+  }
+
+  async passwordFieldType(): Promise<string | null> {
+    return this.passwordInput.getAttribute('type');
   }
 }

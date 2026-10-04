@@ -1,35 +1,106 @@
 name: Playwright Tests
+
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
 
+env:
+  # Repository secrets override these; the fallbacks are the public challenge
+  # account, so the pipeline is green on a fresh clone with nothing configured.
+  BASE_URL: ${{ vars.BASE_URL || 'https://www.demoblaze.com' }}
+  API_BASE_URL: ${{ vars.API_BASE_URL || 'https://api.demoblaze.com' }}
+  DEMOBLAZE_USERNAME: ${{ secrets.DEMOBLAZE_USERNAME || 'ChallengeUser' }}
+  DEMOBLAZE_PASSWORD: ${{ secrets.DEMOBLAZE_PASSWORD || 'ChallengeUser' }}
+
 jobs:
-  test:
+  # Contract tests need no browsers, so they finish in under a minute and fail
+  # fast before the expensive UI matrix starts.
+  api-tests:
+    name: API tests
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run API tests
+        run: npx playwright test --project=api
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: report-api
+          path: |
+            playwright-report/
+            test-results/junit.xml
+          retention-days: 30
+
+  # One job per browser/viewport, so a single engine failing does not mask the
+  # others and each report is separately downloadable.
+  ui-tests:
+    name: UI tests (${{ matrix.project }})
+    needs: api-tests
     timeout-minutes: 60
     runs-on: ubuntu-latest
-    env:
-      # Falls back to the public challenge account when no secrets are set.
-      BASE_URL: ${{ vars.BASE_URL || 'https://www.demoblaze.com' }}
-      DEMOBLAZE_USERNAME: ${{ secrets.DEMOBLAZE_USERNAME || 'ChallengeUser' }}
-      DEMOBLAZE_PASSWORD: ${{ secrets.DEMOBLAZE_PASSWORD || 'ChallengeUser' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - ui-chromium
+          - ui-firefox
+          - ui-webkit
+          - ui-mobile-chrome
+          - ui-mobile-safari
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: lts/*
-        cache: npm
-    - name: Install dependencies
-      run: npm ci
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
-    - name: Run Playwright tests
-      run: npx playwright test
-    - uses: actions/upload-artifact@v4
-      if: ${{ !cancelled() }}
-      with:
-        name: playwright-report
-        path: playwright-report/
-        retention-days: 30
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+      - name: Run UI tests
+        run: npx playwright test --project=${{ matrix.project }}
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: report-${{ matrix.project }}
+          path: |
+            playwright-report/
+            test-results/junit.xml
+          retention-days: 30
+
+  # Latency against a shared demo host is not this team's defect to fix, so a
+  # budget breach is reported without failing the pipeline.
+  performance-tests:
+    name: Performance budgets
+    needs: api-tests
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Run performance tests
+        run: npx playwright test --project=perf
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: report-perf
+          path: playwright-report/
+          retention-days: 30

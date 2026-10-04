@@ -1,45 +1,74 @@
 import { defineConfig, devices } from '@playwright/test';
-import { BASE_URL } from './config/env';
+import { API_BASE_URL, BASE_URL } from './config/env';
 
 /**
+ * Test-type layout
+ * ----------------
+ * tests/ui    UI / regression, runs the full suite on Chromium and the
+ *             @smoke subset on the other browsers and mobile viewports
+ * tests/api   contract and negative checks straight against the REST API
+ * tests/perf  page-load and endpoint latency budgets
+ *
+ * Shaping cross-browser coverage this way keeps the signal (every browser
+ * exercises the critical paths) without multiplying the whole suite by five
+ * against a shared public demo app.
+ *
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
   testDir: './tests',
-  /* Run tests in files in parallel */
   fullyParallel: true,
-  /* Fail the build on CI if you accidentally left test.only in the source code. */
+  /* Fail the build on CI if a test.only was left in the source. */
   forbidOnly: !!process.env.CI,
   /* DemoBlaze is a shared public demo app, so allow a retry everywhere. */
   retries: process.env.CI ? 2 : 1,
-  /* DemoBlaze throttles concurrent traffic, so keep the worker count low. */
-  workers: process.env.CI ? 1 : 2,
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: [['list'], ['html', { open: 'never' }]],
+  /*
+   * Deliberately serial. DemoBlaze throttles bursts of traffic: running this
+   * suite with parallel workers produced ERR_CONNECTION_CLOSED and TLS socket
+   * disconnects that look like test failures but are the host shedding load.
+   * One worker keeps the request rate civil and the results trustworthy.
+   * In CI each browser project is its own runner, so wall-clock stays sane.
+   */
+  workers: 1,
+  reporter: [
+    ['list'],
+    ['html', { open: 'never' }],
+    ['junit', { outputFile: 'test-results/junit.xml' }],
+  ],
   /* The public demo app is slow under load; give actions room to settle. */
-  timeout: 90_000,
-  expect: { timeout: 15_000 },
-  /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
+  timeout: 120_000,
+  expect: { timeout: 20_000 },
   use: {
-    /* Base URL so specs can call page.goto('/'). */
     baseURL: BASE_URL,
-    actionTimeout: 15_000,
+    actionTimeout: 30_000,
     navigationTimeout: 60_000,
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
 
-  /* Configure projects for major browsers */
   projects: [
+    /* ---------- API: no browser needed, so it runs first and fastest ---------- */
     {
-      name: 'chromium',
+      name: 'api',
+      testDir: './tests/api',
+      // The demo API is occasionally slow; a longer action timeout here keeps
+      // genuine contract failures distinguishable from transient latency.
+      use: { baseURL: API_BASE_URL, actionTimeout: 30_000 },
+    },
+
+    /* ---------- UI: full regression on Chromium ---------- */
+    {
+      name: 'ui-chromium',
+      testDir: './tests/ui',
       use: { ...devices['Desktop Chrome'] },
     },
 
+    /* ---------- UI: critical paths on the other engines ---------- */
     {
-      name: 'firefox',
+      name: 'ui-firefox',
+      testDir: './tests/ui',
+      grep: /@smoke/,
       use: {
         ...devices['Desktop Firefox'],
         launchOptions: {
@@ -52,10 +81,32 @@ export default defineConfig({
         },
       },
     },
-
     {
-      name: 'webkit',
+      name: 'ui-webkit',
+      testDir: './tests/ui',
+      grep: /@smoke/,
       use: { ...devices['Desktop Safari'] },
+    },
+
+    /* ---------- UI: critical paths on mobile viewports ---------- */
+    {
+      name: 'ui-mobile-chrome',
+      testDir: './tests/ui',
+      grep: /@smoke/,
+      use: { ...devices['Pixel 7'] },
+    },
+    {
+      name: 'ui-mobile-safari',
+      testDir: './tests/ui',
+      grep: /@smoke/,
+      use: { ...devices['iPhone 14'] },
+    },
+
+    /* ---------- Performance: single engine, budgets from .env ---------- */
+    {
+      name: 'perf',
+      testDir: './tests/perf',
+      use: { ...devices['Desktop Chrome'] },
     },
   ],
 });

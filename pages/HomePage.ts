@@ -1,24 +1,17 @@
 import { Page, Locator, expect } from '@playwright/test';
+import { BasePage } from './BasePage';
 
-/**
- * The DemoBlaze product catalogue (home page) plus the navigation bar
- * that is shared across the whole site.
- */
-export class HomePage {
-  readonly page: Page;
-  readonly cartNavButton: Locator;
-  readonly loginNavButton: Locator;
-  readonly logoutNavButton: Locator;
-  readonly userGreeting: Locator;
+/** The DemoBlaze product catalogue (index.html). */
+export class HomePage extends BasePage {
   readonly productCards: Locator;
+  readonly categoryLinks: Locator;
+  readonly nextPageButton: Locator;
 
   constructor(page: Page) {
-    this.page = page;
-    this.cartNavButton = page.locator('#cartur');
-    this.loginNavButton = page.locator('#login2');
-    this.logoutNavButton = page.locator('#logout2');
-    this.userGreeting = page.locator('#nameofuser');
+    super(page);
     this.productCards = page.locator('#tbodyid .card-title a');
+    this.categoryLinks = page.locator('#itemc');
+    this.nextPageButton = page.locator('#next2');
   }
 
   async goto() {
@@ -36,11 +29,15 @@ export class HomePage {
     await this.productLink(productName).first().click();
   }
 
-  async openCart() {
-    await this.cartNavButton.click();
+  async filterByCategory(category: string) {
+    await this.categoryLinks
+      .filter({ hasText: new RegExp(category, 'i') })
+      .first()
+      .click();
+    await expect(this.productCards.first()).toBeVisible();
   }
 
-  async verifyLoggedIn(username: string) {
-    await expect(this.userGreeting).toContainText(`Welcome ${username}`);
+  async productTitles(): Promise<string[]> {
+    return (await this.productCards.allTextContents()).map((title) => title.trim());
   }
 }

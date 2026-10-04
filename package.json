@@ -1,17 +1,26 @@
 {
   "name": "qaautomationchallenge",
   "version": "1.0.0",
-  "description": "Playwright + TypeScript UI automation suite for the DemoBlaze demo shop",
+  "description": "Playwright + TypeScript UI/API/performance automation framework for the DemoBlaze demo shop",
   "main": "index.js",
   "scripts": {
     "test": "playwright test",
-    "test:chromium": "playwright test --project=chromium",
-    "test:firefox": "playwright test --project=firefox",
-    "test:webkit": "playwright test --project=webkit",
-    "test:headed": "playwright test --project=chromium --headed",
-    "test:ui": "playwright test --ui",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:regression": "playwright test --grep @regression",
+    "test:ui": "playwright test --project=ui-chromium",
+    "test:api": "playwright test --project=api",
+    "test:perf": "playwright test --project=perf",
+    "test:cross-browser": "playwright test --project=ui-chromium --project=ui-firefox --project=ui-webkit",
+    "test:mobile": "playwright test --project=ui-mobile-chrome --project=ui-mobile-safari",
+    "test:known-defects": "playwright test --grep @known-defect",
+    "test:headed": "playwright test --project=ui-chromium --headed",
+    "test:debug": "playwright test --project=ui-chromium --debug",
+    "test:uimode": "playwright test --ui",
     "report": "playwright show-report",
-    "install:browsers": "playwright install --with-deps"
+    "install:browsers": "playwright install --with-deps",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "repository": {
     "type": "git",
@@ -27,7 +36,9 @@
   "homepage": "https://github.com/myatthin12/QAAutomationChallenge#readme",
   "devDependencies": {
     "@playwright/test": "^1.63.0",
-    "@types/node": "^26.6.4"
+    "@types/node": "^26.6.4",
+    "prettier": "^3.9.9",
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "dotenv": "^18.0.5"
