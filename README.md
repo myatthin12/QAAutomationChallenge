@@ -45,6 +45,43 @@ npm run test:ui          # Playwright UI mode
 npm run report           # open the last HTML report
 ```
 
+### Running with a visible browser (headless: false)
+
+Tests run headless by default. To watch them, pass `--headed` rather than
+editing the config, so CI stays headless:
+
+```bash
+npm run test:headed                                    # chromium, visible
+npx playwright test --headed                           # all browsers, visible
+npx playwright test --project=chromium --headed        # one browser
+npx playwright test tests/checkout.spec.ts --headed    # one spec
+npx playwright test --headed --workers=1               # one window at a time
+```
+
+Add `--workers=1` if you want to follow along, otherwise several browser
+windows open at once and race past each other.
+
+For debugging, these beat plain headed mode because they also show the DOM
+snapshot at each step:
+
+```bash
+npm run test:ui                                        # time-travel UI mode
+npx playwright test tests/checkout.spec.ts --debug     # Playwright Inspector
+npx playwright test --headed --workers=1 --slow-mo=500 # 500ms between actions
+```
+
+To make it permanent, set `headless` in the shared `use` block of
+`playwright.config.ts` — keyed off `CI` so the pipeline still runs headless:
+
+```ts
+use: {
+  headless: !!process.env.CI,
+}
+```
+
+Headed runs need a display (`DISPLAY` or a Wayland session); on a headless
+machine, run them under `xvfb-run`.
+
 ## Layout
 
 ```
